@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html lang="en">
+	<head>
+		<title>Real Virtual Physics</title>
+		<!--
+		Attribution
+		eleVR webvr boilerplate: https://github.com/hawksley
+		Scanned sculptures "Unscannables": Emily Eifler
+		-->
+	</head>
+
+	<body>
+	<audio id='hit1' src="media/hitSFX/hit1.ogg" >
+	<audio id='hit2' src="media/hitSFX/hit2.ogg" >
+	<audio id='hit3' src="media/hitSFX/hit3.ogg" >
+	<audio id='hit4' src="media/hitSFX/hit4.ogg" >
+	<audio id='hit5' src="media/hitSFX/hit5.ogg" >
+	</body>
+
+	<script src="js/grab.js"></script>
+	<script src="js/three.min.js"></script>
+	<script src="js/VRControls.js"></script>
+	<script src="js/VREffect.js"></script>
+	<script src="lib/gl-matrix.js"></script>
+	<script src="loaders/OBJloader.js"></script>
+	<script src="loaders/MTLLoader.js"></script>
+	<script src="loaders/OBJMTLLoader.js"></script>
+	<script src="js/PhoneVR.js"></script>
+
+	<!--font from http://mrdoob.github.com/three.js/examples/fonts/helvetiker_regular.typeface.js -->
+	<script src="lib/helvetiker.js"></script>
+
+	<script>
+
+		var c = 1/15; //scae factor
+		/*
+		Setup three.js WebGL renderer
+		*/
+		var renderer = new THREE.WebGLRenderer( { antialias: true } );
+		/*
+		Append the canvas element created by the renderer to document body element.
+		*/
+		document.body.appendChild( renderer.domElement );
+		/*
+		Create a three.js scene
+		*/
+		var scene = new THREE.Scene();
+		/*
+		Create a three.js camera
+		*/
+		var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.001, 10000 );
+
+		/*
+		Apply VR headset positional data to camera.
+		*/
+		var controls = new THREE.VRControls( camera, undefined, 4 );
+
+		/*
+		Apply VR stereo rendering to renderer
+		*/
+		var effect = new THREE.VREffect( renderer );
+		effect.setSize( window.innerWidth, window.innerHeight );
+
+		var everything = new THREE.Object3D;
+
+
+		var pi = 3.1415926535897932384626433832795;
+
+
+		var hit = [
+			document.querySelector('#hit1'),
+			document.querySelector('#hit2'),
+			document.querySelector('#hit3'),
+			document.querySelector('#hit4'),
+			document.querySelector('#hit5')
+		];
+
+		var currentHit = 0; //for looping through hit sounds
+
+		/*
+		Light
+		*/
+
+		var light1 = new THREE.PointLight( 0xffffff, 1, 100 );
+		light1.intensity = 1;
+		light1.position.set(1,1,0);
+		everything.add( light1 );
+
+		var light1Sphere = new THREE.Mesh(
+			new THREE.SphereGeometry(0.1),
+			new THREE.MeshBasicMaterial({wireframe: true})
+			);
+		
+		light1Sphere.position.set(light1.position.x, light1.position.y, light1.position.z);
+		everything.add(light1Sphere);
+
+		var light2 = new THREE.PointLight( 0xffffff, 1, 100 );
+		light2.intensity = 1;
+		light2.position.set(0,1,0);
+		everything.add( light2 );
+
+		var light2Sphere = new THREE.Mesh(
+			new THREE.SphereGeometry(0.1),
+			new THREE.MeshBasicMaterial({wireframe: true})
+			);
+
+		light2Sphere.position.set(light2.position.x, light2.position.y, light2.position.z);
+		everything.add(light2Sphere);
+
+		var light3 = new THREE.PointLight( 0xffffff, 1, 100 );
+		light3.intensity = 1;
+		light3.position.set(0.5,1.5,0);
+		everything.add( light3 );
+
+		var light3Sphere = new THREE.Mesh(
+			new THREE.SphereGeometry(0.1),
+			new THREE.MeshBasicMaterial({wireframe: true})
+			);
+		
+		light3Sphere.position.set(light3.position.x, light3.position.y, light3.position.z);
+		everything.add(light3Sphere);
+
+		var light = [light1, light2, light3];
+		var lightSphere = [light1Sphere, light2Sphere, light3Sphere];
+
+
+
+		/*
+		Skybox
+		*/
+		var skyTexture = new THREE.ImageUtils.loadTexture( "images/sky.jpg" );
+		var skyMaterial = new THREE.MeshBasicMaterial( { map: skyTexture, side: THREE.DoubleSide } );
+		var skyGeometry1 = new THREE.SphereGeometry(55, 30, 30);
+		var skybox = new THREE.Mesh( skyGeometry1, skyMaterial );
+		everything.add( skybox );
+
+		/*
+		Floor
+		*/
+		var floorImage = new THREE.ImageUtils.loadTexture( "images/floor.jpg" );
+		floorImage.wrapS = floorImage.wrapT = THREE.RepeatWrapping;
+		floorImage.repeat.set( 10, 10 );
+		var floorGeometry = new THREE.PlaneBufferGeometry( 150*c, 150*c, 10 );
+		var floorMaterial = new THREE.MeshBasicMaterial( {map: floorImage, color: 0x0475a1, side: THREE.DoubleSide} );
+		var floor = new THREE.Mesh( floorGeometry, floorMaterial );
+		floor.rotation.x = 90 * Math.PI/180;
+		floor.position.y = 0;
+		floor.scale.set(8,8,8);
+		everything.add( floor );
+
+		//grab stuff setup:
+		var grabbables = []; //for objects
+		var grabRadius = []; //for collision
+		var originalPos = []; //for returning to after collision poke
+		var handPosVector = new THREE.Vector3(0,0,0);
+
+		var relative = [];
+
+		var editMode = true;
+
+		//drawing and tracking controller stuff setup:
+		var point = [];
+		var pointTime = [];
+		var pointNumber = 50;
+		var currentPoint = 0; //for going through the points
+		var granularity = 100; //how often we track the controller, in milliseconds
+		var pointCollision = 0.1; //how close to points to collide
+		var datePrecision = 6;
+		var positionPrecision = 5;
+
+		for (var i = 0; i < pointNumber; i++){
+			point[i] = new THREE.Mesh(
+				new THREE.TetrahedronGeometry(0.03),
+				new THREE.MeshLambertMaterial()
+				);
+			point[i].material.color.setRGB(1,0,0);
+			pointTime[i] = Date.now(); //milliseconds since 1970
+			scene.add(point[i]); //this is a thing! scene! not everything!
+		}
+
+		var text = [];
+		var positionText = [];
+		var textCount = 0 //making new text every time ever
+
+		for (var i = 0; i < point.length; i++){
+			text[i] = new THREE.Mesh( 
+				new THREE.TextGeometry(String(Date.now()), {size: 0.03, height: 0.01}), 
+				new THREE.MeshNormalMaterial()
+				);
+			scene.add(text[i]);
+			var tempPosText = String(point[0].position.x)+", "+String(point[0].position.y)+", "+String(point[0].position.z);
+			positionText[i] = new THREE.Mesh( 
+				new THREE.TextGeometry(tempPosText, {size: 0.03, height: 0.01}), 
+				new THREE.MeshNormalMaterial()
+				);
+			positionText[i].position.y -= 0.04;
+			scene.add(positionText[i]);
+		}
+
+		setInterval(experiment, granularity);
+
+
+
+		//moveable lights:
+		grabbables[0] = light1;
+		grabRadius[0] = 0.1;
+		originalPos[0] = light1.position;
+		grabbables[1] = light2;
+		grabRadius[1] = 0.1;
+		originalPos[1] = light2.position;
+		grabbables[2] = light3;
+		grabRadius[2] = 0.1;
+		originalPos[2] = light3.position;
+		//end grab stuff setup
+
+		//moveable ruler objects:
+		var ruler = [];
+		var rulerNumber = 5;
+
+		for (var i = 0; i < rulerNumber; i++){
+			ruler[i] = new THREE.Mesh(
+				new THREE.BoxGeometry(1,0.01,0.05),
+				new THREE.MeshLambertMaterial()
+				);
+			ruler[i].position.z = i/2;
+			grabbables[3+i] = ruler[i];
+			grabRadius[3+i] = 0.5;
+			everything.add(grabbables[3+i]);
+		}
+
+		scene.add(everything);
+
+		//for non-spatially tracked mostly:
+		controls.setDefaultPosition([0,1.5,-1]);
+		//for default position in a room, Vive mostly:
+		var manualPosition = new THREE.Vector3(0.04, -0.49, -0.78);
+		everything.position.set(manualPosition.x, manualPosition.y, manualPosition.z);
+		//default rotation around vertical axis, in radians
+		var manualRotation = 0;
+		everything.rotation.y = manualRotation;
+
+
+		var hands = {};
+
+		controls.setDefaultPosition([0,1.5,-1]);
+
+		//time (in milliseconds since 1970 started)
+		var t = Date.now();
+
+
+		/*
+		Request animation frame loop function
+		*/
+
+		function animate() {
+
+			t = Date.now();
+
+			doGrab(); //in grab.js, to move items
+
+			/*
+			Update VR headset position and apply to camera.
+			*/
+			controls.update();
+
+			/*
+			Render the scene through the VREffect.
+			*/
+			// scene.simulate();
+			effect.render( scene, camera );
+			requestAnimationFrame( animate );
+			// console.time("everything");
+			// console.timeEnd("animate");
+		}
+
+		/*
+		Kick off animation loop
+		*/
+		animate();
+
+
+
+		/*
+		Listen for double click event to enter full-screen VR mode
+		*/
+		document.body.addEventListener( 'dblclick', function() {
+			effect.setFullScreen( true );
+		});
+
+		/*
+		Listen for keyboard event and zero positional sensor on appropriate keypress.
+		*/
+		var vrMode = false;
+
+		function onkey(event) {
+	      event.preventDefault();
+          if (event.keyCode == 90) { // z
+	    	controls.zeroSensor(); //zero rotation
+	      } else if (event.keyCode == 70) { //f
+	    	effect.setFullScreen(true) //fullscreen
+		  } else if (event.keyCode == 73) { //i
+		    manualPosition.x += 0.01; //
+		    everything.position.x += 0.01; //
+		  } else if (event.keyCode == 75) { //k
+		    manualPosition.x -= 0.01; //
+		    everything.position.x -= 0.01; //
+		  } else if (event.keyCode == 74) { //j
+		    manualPosition.z += 0.01; //
+		    everything.position.z += 0.01; //
+		  } else if (event.keyCode == 76) { //l
+		    manualPosition.z -= 0.01; //
+		    everything.position.z -= 0.01; //
+		  } else if (event.keyCode == 85) { //u
+		    manualPosition.y += 0.01; //
+		    everything.position.y += 0.01; //
+		  } else if (event.keyCode == 79) { //o
+		    manualPosition.y -= 0.01; //
+		    everything.position.y -= 0.01; //
+		  } else if (event.keyCode == 69) { //e
+		    manualRotation += 0.01; //
+		    everything.rotation.y += 0.01; //
+		  } else if (event.keyCode == 81) { //q
+		    manualRotation -= 0.01; //
+		    everything.rotation.y -= 0.01; //
+	  	  } else if (event.keyCode == 86 || event.keyCode == 13 || event.keyCode == 32 ) { // v or 'enter' or 'space' for VR mode
+		    vrMode = !vrMode;
+		    effect.setVRMode(vrMode);
+		  }else if (event.keyCode == 71 ) { // g to toggle edit mode / gallery mode
+		    editMode = !editMode;
+		    for (var i = 0; i< light.length; i++){
+		    	lightSphere[i].visible = !lightSphere[i].visible;
+		    }
+		  } 
+	  	};
+
+	  window.addEventListener("keydown", onkey, true);
+
+
+		/*
+		Handle window resizes
+		*/
+		function onWindowResize() {
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+
+			effect.setSize( window.innerWidth, window.innerHeight );
+		}
+
+		window.addEventListener( 'resize', onWindowResize, false );
+
+		document.body.addEventListener( 'click', doClickStuff);
+
+		function doClickStuff(event) {
+		  effect.setFullScreen(true);
+
+		  if (typeof window.screen.orientation !== 'undefined' && typeof window.screen.orientation.lock === 'function') {
+		    window.screen.orientation.lock('landscape-primary');
+		  }
+
+		  if (typeof window.screen.webkitLockOrientation !== 'undefined' && typeof window.screen.webkitLockOrientation.lock === 'function') {
+		    window.screen.webkitLockOrientation('landscape-primary');
+		  }
+
+		  window.screen.webkitLockOrientation('landscape-primary');
+		  window.screen.lockOrientation('landscape-primary');
+		}
+
+	</script>
+</html>
