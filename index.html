@@ -161,13 +161,12 @@
 
 		//drawing and tracking controller stuff setup:
 		var point = [];
-		var pointTime = [];
 		var pointNumber = 50;
 		var currentPoint = 0; //for going through the points
 		var granularity = 100; //how often we track the controller, in milliseconds
 		var pointCollision = 0.1; //how close to points to collide
-		var datePrecision = 6;
-		var positionPrecision = 5;
+		var datePrecision = 5;
+		var positionPrecision = 4;
 
 		for (var i = 0; i < pointNumber; i++){
 			point[i] = new THREE.Mesh(
@@ -175,28 +174,21 @@
 				new THREE.MeshLambertMaterial()
 				);
 			point[i].material.color.setRGB(1,0,0);
-			pointTime[i] = Date.now(); //milliseconds since 1970
+			point[i].time = Date.now(); //milliseconds since 1970
+			point[i].pos = point[i].position;
+			point[i].timeText = new THREE.Mesh( 
+				new THREE.TextGeometry(String(point[i].time), {size: 0.03, height: 0.01}), 
+				new THREE.MeshNormalMaterial()
+				);
+			scene.add(point[i].timeText);
+			point[i].posText = new THREE.Mesh( 
+				new THREE.TextGeometry(point[i].pos, {size: 0.03, height: 0.01}), 
+				new THREE.MeshNormalMaterial()
+				);
+			scene.add(point[i].posText);
 			scene.add(point[i]); //this is a thing! scene! not everything!
 		}
 
-		var text = [];
-		var positionText = [];
-		var textCount = 0 //making new text every time ever
-
-		for (var i = 0; i < point.length; i++){
-			text[i] = new THREE.Mesh( 
-				new THREE.TextGeometry(String(Date.now()), {size: 0.03, height: 0.01}), 
-				new THREE.MeshNormalMaterial()
-				);
-			scene.add(text[i]);
-			var tempPosText = String(point[0].position.x)+", "+String(point[0].position.y)+", "+String(point[0].position.z);
-			positionText[i] = new THREE.Mesh( 
-				new THREE.TextGeometry(tempPosText, {size: 0.03, height: 0.01}), 
-				new THREE.MeshNormalMaterial()
-				);
-			positionText[i].position.y -= 0.04;
-			scene.add(positionText[i]);
-		}
 
 		setInterval(experiment, granularity);
 
@@ -217,17 +209,71 @@
 		//moveable ruler objects:
 		var ruler = [];
 		var rulerNumber = 5;
+		var rulerTexture = new THREE.ImageUtils.loadTexture( "images/ruler.png" );
 
 		for (var i = 0; i < rulerNumber; i++){
 			ruler[i] = new THREE.Mesh(
 				new THREE.BoxGeometry(1,0.01,0.05),
-				new THREE.MeshLambertMaterial()
+				new THREE.MeshLambertMaterial({map: rulerTexture})
 				);
 			ruler[i].position.z = i/2;
 			grabbables[3+i] = ruler[i];
 			grabRadius[3+i] = 0.5;
 			everything.add(grabbables[3+i]);
 		}
+
+		//graph:
+		var graph = new THREE.Object3D();
+		var grid = new THREE.Mesh(
+			new THREE.PlaneGeometry(2,1,10,5),
+			new THREE.MeshLambertMaterial({wireframe: true})
+			);
+		grid.position.set(1,0.5,0);
+		graph.add(grid);
+		for (var i = 0; i < point.length; i++){
+			point[i].data = new THREE.Mesh(
+				new THREE.TetrahedronGeometry(0.05),
+				new THREE.MeshLambertMaterial({color: 0xffff00})
+				);
+			point[i].data.position.x = i/25;
+			graph.add(point[i].data);
+		}
+		graph.position.set(0,0.5,0.5);
+		everything.add(graph);
+		grabRadius[grabbables.length] = 0.5;
+		grabbables[grabbables.length] = graph;
+
+		//graph:
+		var graph2 = new THREE.Object3D();
+		var grid2 = new THREE.Mesh(
+			new THREE.PlaneGeometry(2,1,10,5),
+			new THREE.MeshLambertMaterial({wireframe: true})
+			);
+		grid2.position.set(1,0.5,0);
+		graph2.add(grid2);
+		for (var i = 0; i < point.length; i++){
+			point[i].data2 = new THREE.Mesh(
+				new THREE.TetrahedronGeometry(0.05),
+				new THREE.MeshLambertMaterial({color: 0x00ffff})
+				);
+			point[i].data2.position.x = i/25;
+			graph2.add(point[i].data2);
+			point[i].delta = 0;
+		}
+		graph2.position.set(0.5,1,1);
+		everything.add(graph2);
+		grabRadius[grabbables.length] = 0.5;
+		grabbables[grabbables.length] = graph2;
+
+		var torus = new THREE.Mesh(
+			new THREE.TorusGeometry( 0.5, 0.1, 4, pointNumber ),
+			new THREE.MeshLambertMaterial( { color: 0xff00ff } )
+		 	);
+		torus.rotation.x = -Math.PI/2;
+		torus.position.set(-1,0.5,-0.3);
+		grabRadius[grabbables.length] = 0.3;
+		grabbables[grabbables.length] = torus;
+		everything.add( torus );
 
 		scene.add(everything);
 
@@ -254,6 +300,9 @@
 		*/
 
 		function animate() {
+
+			
+  				torus.geometry.verticesNeedUpdate=true;
 
 			t = Date.now();
 

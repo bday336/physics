@@ -58,6 +58,28 @@ function doGrab(){
 				for (var i = 0; i< light.length; i++){
 		    		lightSphere[i].visible = !lightSphere[i].visible;
 		    	}
+		    	if(editMode == true){
+		    		for(var i = 0; i < point.length; i++){
+							//create new text geometry and position for new info. I don't know why it doesn't work the second time.
+						scene.remove(point[i].timeText);
+						scene.remove(point[i].posText);
+
+						point[i].timeText = new THREE.Mesh( 
+							new THREE.TextGeometry(String(point[i].time).substring(13-datePrecision,13), {size: 0.03, height: 0.01}),
+							new THREE.MeshNormalMaterial()
+							);
+						var tempPosText = "("+String(point[i].position.x).substring(0,positionPrecision)+", "+String(point[i].position.y).substring(0,positionPrecision)+", "+String(point[i].position.z).substring(0,positionPrecision)+")";
+						point[i].posText = new THREE.Mesh( 
+							new THREE.TextGeometry(tempPosText, {size: 0.03, height: 0.01}), 
+							new THREE.MeshNormalMaterial()
+							);
+						point[i].timeText.position.set(point[i].position.x + 0.05, point[i].position.y, point[i].position.z);
+						point[i].posText.position.set(point[i].position.x, point[i].position.y - 0.04, point[i].position.z);
+						scene.add(point[i].posText);
+						scene.add(point[i].timeText);
+
+					}
+				}
 				squeezing = true;
 			}
 		} else {
@@ -67,11 +89,17 @@ function doGrab(){
 		//collision for getting info from points
 		for (var i = 0; i < point.length; i++){
 			if (editMode&&(handPosVector.distanceTo(point[i].position) < pointCollision)){
-				text[i].visible = true;
-				positionText[i].visible = true;
+				point[i].timeText.visible = true;
+				point[i].posText.visible = true;
+				point[i].material.color.setRGB(0,1,0);
+				point[i].data.material.color.setRGB(0,1,0);
+				point[i].data2.material.color.setRGB(0,1,0);
 			} else {
-				text[i].visible = false;
-				positionText[i].visible = false;
+				point[i].timeText.visible = false;
+				point[i].posText.visible = false;
+				point[i].material.color.setRGB(1,0,0);
+				point[i].data.material.color.setRGB(1,1,0);
+				point[i].data2.material.color.setRGB(0,1,1);
 			}
 		}
 
@@ -83,7 +111,7 @@ function doGrab(){
 					grabbables[i].quaternion.set(handControl.pose.orientation[0],handControl.pose.orientation[1],handControl.pose.orientation[2],handControl.pose.orientation[3]);
 					// grabbables[i].scale.set(handControl.axes[0], handControl.axes[1], handControl.buttons[1].value);
 					if (grabbables[i].intensity){
-						var lightNumber = i - (grabbables.length - light.length);
+						var lightNumber = i;
 						lightSphere[lightNumber].position.set(grabbables[i].position.x, grabbables[i].position.y, grabbables[i].position.z); //keep our light visualizer where the light is
 						if (handControl.buttons[0].pressed){
 							grabbables[i].intensity = handControl.axes[0] + 1;
@@ -112,17 +140,26 @@ function experiment(){
 		for (j in controls.controllers) {//look at the controllers
 			var handControl = controls.controllers[j];
 			if (handControl.pose){
-				point[currentPoint].position.set(handControl.pose.position[0], handControl.pose.position[1], handControl.pose.position[2]);
+				point[currentPoint].position.set(handControl.pose.position[0], handControl.pose.position[1], handControl.pose.position[2]);	
+				point[currentPoint].time = Date.now(); //milliseconds since 1970
+				point[currentPoint].data.position.y = (point[currentPoint].position.y - everything.position.y)/2;
+				var previousPoint = currentPoint - 1;
+				if (previousPoint == -1){
+					previousPoint = point.length - 1;
+				}
+				point[currentPoint].delta = point[currentPoint].position.distanceTo(point[previousPoint].position);
+				point[currentPoint].data2.position.y = point[currentPoint].delta*2;
+				var torusVertex = currentPoint + pointNumber + 1;
+				torus.geometry.vertices[torusVertex].z = point[currentPoint].delta;
+				if(currentPoint == 0){
+					torus.geometry.vertices[pointNumber + pointNumber + 1].z = point[currentPoint].delta;
+				}
+				currentPoint = (currentPoint + 1)%pointNumber; //loop through the points, one per frame
+
 			}
-			//create new text geometry and position for new info:
-			text[currentPoint].geometry = new THREE.TextGeometry(String(Date.now()).substring(13-datePrecision,13), {size: 0.03, height: 0.01});
-			text[currentPoint].position.set(point[currentPoint].position.x + 0.05, point[currentPoint].position.y,point[currentPoint].position.z)
 
-			var tempPosText = String(point[currentPoint].position.x).substring(0,positionPrecision)+", "+String(point[currentPoint].position.y).substring(0,positionPrecision)+", "+String(point[currentPoint].position.z).substring(0,positionPrecision);
-			positionText[currentPoint].geometry = new THREE.TextGeometry(tempPosText, {size: 0.03, height: 0.01});
-			positionText[currentPoint].position.set(point[currentPoint].position.x,point[currentPoint].position.y - 0.04, point[currentPoint].position.z)
 
-			currentPoint = (currentPoint + 1)%pointNumber; //loop through the points, one per frame
+
 		}
 	}
 }
