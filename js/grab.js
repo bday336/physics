@@ -108,7 +108,11 @@ function doGrab(){
 			for (var i = 0; i < grabbables.length; i++){
 				if (grabbables[i]&&(relative[i].distanceTo(handPosVector) < grabRadius[i])){
 					grabbables[i].position.set((handControl.pose.position[0] - everything.position.x)/everything.scale.x, (handControl.pose.position[1] - everything.position.y)/everything.scale.y, (handControl.pose.position[2] - everything.position.z)/everything.scale.z);
-					grabbables[i].quaternion.set(handControl.pose.orientation[0],handControl.pose.orientation[1],handControl.pose.orientation[2],handControl.pose.orientation[3]);
+					if(grabbables[i] != ramp){
+						grabbables[i].quaternion.set(handControl.pose.orientation[0],handControl.pose.orientation[1],handControl.pose.orientation[2],handControl.pose.orientation[3]);
+					} else{
+						grabbables[i].position.y = 0;
+					}
 					// grabbables[i].scale.set(handControl.axes[0], handControl.axes[1], handControl.buttons[1].value);
 					if (grabbables[i].intensity){
 						var lightNumber = i;
@@ -154,6 +158,12 @@ function experiment(){
 				if(currentPoint == 0){
 					torus.geometry.vertices[pointNumber + pointNumber + 1].z = point[currentPoint].delta;
 				}
+				block[0].position.y = point[currentPoint].data.position.y;
+				block[2].position.y = point[previousPoint].data.position.y;
+				block[1].position.y = point[(currentPoint+(pointNumber-2))%pointNumber].data.position.y;
+				stick.rotation.x = Math.PI*(point[(currentPoint+(pointNumber-2))%pointNumber].data.position.y - point[currentPoint].data.position.y);
+
+
 				currentPoint = (currentPoint + 1)%pointNumber; //loop through the points, one per frame
 
 			}
